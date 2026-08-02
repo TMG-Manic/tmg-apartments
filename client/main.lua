@@ -1,8 +1,8 @@
--- [[ TMG MAINFRAME: APARTMENT CORE ]]
-local TMGCore = exports['tmg-core']:GetCoreObject()
-local UseTarget = Config.UseTarget -- TMG: Sourced from Config
 
--- [[ 1. PROTECTED STATE MATRIX ]]
+local TMGCore = exports['tmg-core']:GetCoreObject()
+local UseTarget = Config.UseTarget 
+
+
 local ApartState = {
     inApartment = false,
     closestHouse = nil,
@@ -14,22 +14,22 @@ local ApartState = {
     poiOffsets = nil,
     rangDoorbell = nil,
     blips = {},
-    -- Zone Flags
+    
     isInsideEntrance = false,
     isInsideExit = false,
     isInsideStash = false,
     isInsideOutfits = false,
     isInsideLogout = false,
     
-    -- Target Registry
+    
     targetsCreated = false,
     apartmentTargets = {}
 }
 
--- polyzone integration
+
 
 local function RefreshApartmentBlips(homeType)
-    -- TMG Optimization: Update existing blips instead of full destruction/recreation cycles
+    
     for id, data in pairs(Apartments.Locations) do
         if not ApartState.blips[id] then
             local blip = AddBlipForCoord(data.coords.enter.x, data.coords.enter.y, data.coords.enter.z)
@@ -54,7 +54,7 @@ local function RefreshApartmentBlips(homeType)
     end
 end
 
--- [[ 3. DYNAMIC INTERACTION MENUS ]]
+
 
 local function OpenEntranceMenu()
     local headerMenu = {}
@@ -77,7 +77,7 @@ local function OpenExitMenu()
     exports['tmg-menu']:openMenu(headerMenu)
 end
 
--- [[ 4. GEOSPATIAL REGISTRATION (POLYZONE & TARGET) ]]
+
 
 local function RegisterApartmentEntranceZone(apartmentID, apartmentData)
     local coords = apartmentData.coords['enter']
@@ -86,7 +86,7 @@ local function RegisterApartmentEntranceZone(apartmentID, apartmentData)
 
     local zone = BoxZone:Create(coords, boxData.length, boxData.width, {
         name = 'apartmentEntrance_' .. apartmentID,
-        heading = boxData.heading or 340.0, -- TMG Fix: Use config heading
+        heading = boxData.heading or 340.0, 
         minZ = coords.z - 1.0, maxZ = coords.z + 5.0, debugPoly = false
     })
 
@@ -116,10 +116,10 @@ local function RegisterApartmentEntranceTarget(apartmentID, apartmentData)
     boxData.created = true
 end
 
--- interior interactable points (polyzone)
+
 
 local function RegisterInApartmentZone(targetKey, coords, heading, text)
-    if not ApartState.inApartment then return end -- Matrix Check
+    if not ApartState.inApartment then return end 
     
     if ApartState.apartmentTargets[targetKey] and ApartState.apartmentTargets[targetKey].created then
         return
@@ -137,7 +137,7 @@ local function RegisterInApartmentZone(targetKey, coords, heading, text)
         if isInside and text then exports['tmg-core']:DrawText(text, 'left')
         else exports['tmg-core']:HideText() end
 
-        -- Matrix Sync: Map specific keys to state flags
+        
         if targetKey == 'entrancePos' then ApartState.isInsideExit = isInside
         elseif targetKey == 'stashPos' then ApartState.isInsideStash = isInside
         elseif targetKey == 'outfitsPos' then ApartState.isInsideOutfits = isInside
@@ -147,9 +147,9 @@ local function RegisterInApartmentZone(targetKey, coords, heading, text)
     ApartState.apartmentTargets[targetKey] = { created = true, zone = zone }
 end
 
--- interior interactable points (target)
+
 local function RegisterInApartmentTarget(targetKey, coords, heading, options)
-    if not ApartState.inApartment then return end -- Matrix Check
+    if not ApartState.inApartment then return end 
 
     if ApartState.apartmentTargets[targetKey] and ApartState.apartmentTargets[targetKey].created then
         return
@@ -163,22 +163,22 @@ local function RegisterInApartmentTarget(targetKey, coords, heading, options)
         debugPoly = false,
     }, {
         options = options,
-        distance = 1.0 -- TMG Opt: Tight distance for interior performance
+        distance = 1.0 
     })
 
     ApartState.apartmentTargets[targetKey] = { created = true }
 end
 
--- shared
--- [[ TMG MAINFRAME: GEOSPATIAL INTERACTION HANDLERS ]]
 
--- 1. EXTERIOR ENTRANCE REGISTRY
+
+
+
 local function SetApartmentsEntranceTargets()
     if not Apartments.Locations or not next(Apartments.Locations) then return end
 
     for id, apartment in pairs(Apartments.Locations) do
         if apartment.coords and apartment.coords['enter'] then
-            -- TMG Optimization: Centralized logic gate
+            
             if UseTarget then
                 RegisterApartmentEntranceTarget(id, apartment)
             else
@@ -188,23 +188,23 @@ local function SetApartmentsEntranceTargets()
     end
 end
 
--- 2. INTERIOR POINT CALCULATOR
+
 local function SetInApartmentTargets()
-    -- Guard: Ensure interior telemetry is ready
+    
     if not ApartState.poiOffsets or not ApartState.closestHouse then return end
 
     local baseCoords = Apartments.Locations[ApartState.closestHouse].coords.enter
     local zPos = baseCoords.z - ApartState.currentOffset
     local offsets = ApartState.poiOffsets
 
-    -- TMG Kinetic Math: Calculate relative interior positions
+    
     local entrancePos = vector3(baseCoords.x + offsets.exit.x, baseCoords.y + offsets.exit.y, zPos + offsets.exit.z)
     local stashPos    = vector3(baseCoords.x - offsets.stash.x, baseCoords.y - offsets.stash.y, zPos + offsets.stash.z)
     local outfitsPos  = vector3(baseCoords.x - offsets.clothes.x, baseCoords.y - offsets.clothes.y, zPos + offsets.clothes.z)
     local logoutPos   = vector3(baseCoords.x - offsets.logout.x, baseCoords.y + offsets.logout.y, zPos + offsets.logout.z)
 
     if UseTarget then
-        -- Target Integration
+        
         RegisterInApartmentTarget('entrancePos', entrancePos, 0, {
             { type = 'client', event = 'apartments:client:OpenDoor', icon = 'fas fa-door-open', label = Lang:t('text.open_door') },
             { type = 'client', event = 'apartments:client:LeaveApartment', icon = 'fas fa-sign-out-alt', label = Lang:t('text.leave') },
@@ -219,7 +219,7 @@ local function SetInApartmentTargets()
             { type = 'client', event = 'apartments:client:Logout', icon = 'fas fa-power-off', label = Lang:t('text.logout') },
         })
     else
-        -- PolyZone Integration
+        
         RegisterInApartmentZone('stashPos', stashPos, 0, '[E] ' .. Lang:t('text.open_stash'))
         RegisterInApartmentZone('outfitsPos', outfitsPos, 0, '[E] ' .. Lang:t('text.change_outfit'))
         RegisterInApartmentZone('logoutPos', logoutPos, 0, '[E] ' .. Lang:t('text.logout'))
@@ -227,7 +227,7 @@ local function SetInApartmentTargets()
     end
 end
 
--- 3. ENTRANCE DECONSTRUCTION
+
 local function DeleteApartmentsEntranceTargets()
     for id, apartment in pairs(Apartments.Locations) do
         local boxName = 'apartmentEntrance_' .. id
@@ -239,22 +239,22 @@ local function DeleteApartmentsEntranceTargets()
             apartment.polyzoneBoxData.zone = nil
         end
         
-        -- Reset Matrix Flag
+        
         if apartment.polyzoneBoxData then
             apartment.polyzoneBoxData.created = false
         end
     end
 end
 
--- 4. INTERIOR DECONSTRUCTION (TMG Memory Cleanup)
+
 local function DeleteInApartmentTargets()
-    -- Reset Matrix Logic Flags
+    
     ApartState.isInsideExit = false
     ApartState.isInsideStash = false
     ApartState.isInsideOutfits = false
     ApartState.isInsideLogout = false
 
-    -- Wipe active zones from engine
+    
     if ApartState.apartmentTargets and next(ApartState.apartmentTargets) then
         for id, targetData in pairs(ApartState.apartmentTargets) do
             if UseTarget then
@@ -265,7 +265,7 @@ local function DeleteInApartmentTargets()
         end
     end
     
-    -- Clear Matrix Registry
+    
     ApartState.apartmentTargets = {}
 end
 
@@ -290,7 +290,7 @@ local function DeleteInApartmentTargets()
     ApartState.apartmentTargets = {}
 end
 
--- utility functions
+
 
 local function loadAnimDict(dict)
     if HasAnimDictLoaded(dict) then return true end
@@ -320,15 +320,14 @@ local function openHouseAnim()
     end
 end
 
--- [[ TMG MAINFRAME: UNIFIED ENTRY PROTOCOL ]]
 
-local function EnterApartment(house, apartmentId, isNew)
+
+local function EnterApartment(house, apartmentId, isNew, isVisiting)
     TriggerServerEvent('InteractSound_SV:PlayOnSource', 'houses_door_open', 0.1)
     openHouseAnim()
     
     TMGCore.Functions.TriggerCallback('apartments:GetApartmentOffset', function(offset)
-        
-        local function ProceedWithEntry(targetOffset, isVisiting)
+        local function ProceedWithEntry(targetOffset)
             if targetOffset > 230 then targetOffset = 210 end
             
             ApartState.currentOffset = targetOffset
@@ -353,7 +352,8 @@ local function EnterApartment(house, apartmentId, isNew)
             Wait(500)
             TriggerEvent('tmg-weathersync:client:DisableSync')
             
-            TriggerServerEvent('tmg-apartments:server:SetInsideMeta', house, apartmentId, true, isVisiting)
+            
+            TriggerServerEvent('tmg-apartments:server:SetInsideMeta', house, apartmentId, true, isVisiting or false)
             TriggerServerEvent('InteractSound_SV:PlayOnSource', 'houses_door_close', 0.1)
             TriggerServerEvent('apartments:server:setCurrentApartment', apartmentId)
             
@@ -363,12 +363,11 @@ local function EnterApartment(house, apartmentId, isNew)
 
         if offset == nil or offset == 0 then
             TMGCore.Functions.TriggerCallback('apartments:GetApartmentOffsetNewOffset', function(newoffset)
-                ProceedWithEntry(newoffset, false)
+                ProceedWithEntry(newoffset)
             end, house)
         else
-            ProceedWithEntry(offset, true)
+            ProceedWithEntry(offset)
         end
-        
     end, apartmentId)
 end
 
@@ -376,7 +375,7 @@ local function LeaveApartment(house)
     if not house or not ApartState.inApartment then return end
     
     TriggerServerEvent('InteractSound_SV:PlayOnSource', 'houses_door_open', 0.1)
-    openHouseAnim() -- Uses our hardened animation utility
+    openHouseAnim() 
     
     TriggerServerEvent('tmg-apartments:returnBucket')
     
@@ -416,7 +415,7 @@ local function SetClosestApartment()
     local ped = PlayerPedId()
     local pos = GetEntityCoords(ped)
     local current = nil
-    local dist = 100.0 -- Detect radius
+    local dist = 100.0 
 
     for id, data in pairs(Apartments.Locations) do
         local entrance = data.coords.enter
@@ -469,7 +468,7 @@ function MenuOwners()
 
         for k, v in pairs(apartments) do
             apartmentMenu[#apartmentMenu + 1] = {
-                header = v, -- Display Name (e.g., "John Doe 1234")
+                header = v, 
                 txt = "",
                 params = {
                     event = 'apartments:client:RingMenu',
@@ -497,7 +496,7 @@ function CloseMenuFull()
     exports['tmg-menu']:closeMenu()
 end
 
--- Event Handlers
+
 
 
 AddEventHandler('onResourceStop', function(resource)
@@ -534,9 +533,9 @@ AddEventHandler('onResourceStop', function(resource)
 end)
 
 
--- Events
 
--- [[ TMG MAINFRAME: CHARACTER LIFECYCLE HANDLERS ]]
+
+
 
 RegisterNetEvent('TMGCore:Client:OnPlayerUnload', function()
     ApartState.currentApartment = nil
@@ -589,14 +588,14 @@ RegisterNetEvent('apartments:client:SpawnInApartment', function(apartmentId, apa
     ApartState.closestHouse = apartment
     ApartState.isOwned = true
 
-    EnterApartment(apartment, apartmentId, true)
+    EnterApartment(apartment, apartmentId, true, false)
     
     print(string.format("^5[TMG]^7 Character materialized in apartment: %s (%s)", apartment, apartmentId))
 end)
 
 RegisterNetEvent('tmg-apartments:client:LastLocationHouse', function(apartmentType, apartmentId)
     ApartState.closestHouse = apartmentType
-    EnterApartment(apartmentType, apartmentId, false)
+    EnterApartment(apartmentType, apartmentId, false, false)
     print(string.format("^5[TMG]^7 Mainframe: Last known location restored. Character phased into apartment: %s", apartmentType))
 end)
 
@@ -636,7 +635,8 @@ RegisterNetEvent('apartments:client:EnterApartment', function()
     end
     TMGCore.Functions.TriggerCallback('apartments:GetOwnedApartment', function(result)
         if result ~= nil then
-            EnterApartment(ApartState.closestHouse, result.name)
+            -- Pass isVisiting = false (4th argument)
+            EnterApartment(ApartState.closestHouse, result.name, false, false)
             print(string.format("^5[TMG]^7 Access granted. Character entering property: %s", result.name))
         else
             TMGCore.Functions.Notify(Lang:t('error.nobody_home'), 'error')
@@ -726,14 +726,14 @@ RegisterNetEvent('apartments:client:Logout', function()
 end)
 
 
--- Threads
+
 
 CreateThread(function()
     while not LocalPlayer.state.isLoggedIn do Wait(1000) end
 
     local sleep
     while true do
-        sleep = 1000 -- Default low-frequency polling
+        sleep = 1000 
 
         if not ApartState.inApartment then
             SetClosestApartment()
@@ -741,7 +741,7 @@ CreateThread(function()
 
             if not Config.UseTarget and IsInsideEntranceZone then
                 sleep = 0
-                if IsControlJustPressed(0, 38) then -- [E] Key
+                if IsControlJustPressed(0, 38) then 
                     OpenEntranceMenu()
                     exports['tmg-core']:HideText()
                 end
@@ -751,7 +751,7 @@ CreateThread(function()
             SetInApartmentTargets()
 
             if not Config.UseTarget then
-                sleep = 0 -- High-frequency polling while inside a facility
+                sleep = 0 
 
                 if IsInsideExitZone and IsControlJustPressed(0, 38) then
                     OpenExitMenu()

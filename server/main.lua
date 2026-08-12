@@ -1,13 +1,13 @@
 local ApartmentObjects = {}
 local TMGCore = exports['tmg-core']:GetCoreObject()
 
--- Functions
+
 
 
 local function CreateApartmentId(type)
     local ApartmentId = tostring(type .. math.random(1111, 9999))
     
-    local exists = exports['tmgnosql']:FetchOne('apartments', { ["name"] = ApartmentId })
+    local exists = Citizen.Await(exports['tmgnosql']:FetchOne('apartments', { ["name"] = ApartmentId }))
     
     if not exists then 
         return ApartmentId 
@@ -34,10 +34,26 @@ local function CreateApartment(source, apartmentType, apartmentNumber)
 end
 
 local function GetApartmentInfo(apartmentId)
-    return exports['tmgnosql']:FetchOne('apartments', { name = apartmentId })
+    return Citizen.Await(exports['tmgnosql']:FetchOne('apartments', { ["name"] = apartmentId }))
 end
 
--- Events
+AddEventHandler('playerDropped', function()
+    local src = source
+    
+    for house, houseData in pairs(ApartmentObjects) do
+        if houseData.apartments then
+            for aptId, aptData in pairs(houseData.apartments) do
+                if aptData.players[src] then
+                    aptData.players[src] = nil
+                    
+                    if next(aptData.players) == nil then
+                        ApartmentObjects[house].apartments[aptId] = nil
+                    end
+                end
+            end
+        end
+    end
+end)
 
 RegisterNetEvent('tmg-apartments:server:SetInsideMeta', function(house, insideId, bool, isVisiting)
     local src = source
@@ -45,20 +61,19 @@ RegisterNetEvent('tmg-apartments:server:SetInsideMeta', function(house, insideId
     if not Player then return end
     
     local insideMeta = Player.PlayerData.metadata['inside']
-
     if bool then
         local bucketId = GetHashKey(insideId)
         bucketId = math.abs(bucketId % 65535) + 1 
-
+        
         if not isVisiting then
             insideMeta.apartment.apartmentType = house
             insideMeta.apartment.apartmentId = insideId
             insideMeta.house = nil
             Player.Functions.SetMetaData('inside', insideMeta)
         end
+        
         SetPlayerRoutingBucket(src, bucketId)
         SetRoutingBucketPopulationEnabled(bucketId, false)
-        print(string.format("^5[TMG]^7 Player %s entered bucket %s", Player.PlayerData.citizenid, bucketId))
     else
         insideMeta.apartment.apartmentType = nil
         insideMeta.apartment.apartmentId = nil
@@ -69,18 +84,96 @@ RegisterNetEvent('tmg-apartments:server:SetInsideMeta', function(house, insideId
 end)
 
 RegisterNetEvent('tmg-apartments:returnBucket', function()
-    local src = source
-    SetPlayerRoutingBucket(src, 0)
+    SetPlayerRoutingBucket(source, 0)
 end)
 
 RegisterNetEvent('apartments:server:openStash', function(CurrentApartment)
     local src = source
-    exports['tmg-inventory']:OpenInventory(src, CurrentApartment)
+    local isInside = false
+    
+    for house, data in pairs(ApartmentObjects) do
+        if data.apartments[CurrentApartment] and data.apartments[CurrentApartment].players[src] then
+            isInside = true
+            break
+        end
+    end
+    
+    if isInside then
+        exports['tmg-inventory']:OpenInventory(src, CurrentApartment)
+    else
+        print(string.format("^1[TMG Security]^7 Player %s attempted to exploit stash trigger for instance: %s", src, CurrentApartment))
+    end
+end)
+
+RegisterNetEvent('apartments:server:GiveKey', function(apartmentId, targetCid)
+    local src = source
+    local Player = TMGCore.Functions.GetPlayer(src)
+    
+    local apt = Citizen.Await(exports['tmgnosql']:FetchOne('apartments', { 
+        ["name"] = apartmentId, 
+        ["citizenid"] = Player.PlayerData.citizenid 
+    }))
+    
+    if apt then
+        exports['tmgnosql']:UpdateOne('apartments',
+            { ["name"] = apartmentId },
+            { ["$addToSet"] = { ["tenants"] = targetCid } }
+        )
+        TriggerClientEvent('TMGCore:Notify', src, Lang:t('success.key_given'))
+        print(string.format("^5[TMG]^7 Mainframe: Offline key granted to CID %s for Apartment %s", targetCid, apartmentId))
+    else
+        TriggerClientEvent('TMGCore:Notify', src, Lang:t('error.not_owner'), 'error')
+    end
+end)
+
+RegisterNetEvent('apartments:server:RevokeKey', function(apartmentId, targetCid)
+    local src = source
+    local Player = TMGCore.Functions.GetPlayer(src)
+    
+    local apt = Citizen.Await(exports['tmgnosql']:FetchOne('apartments', { 
+        ["name"] = apartmentId, 
+        ["citizenid"] = Player.PlayerData.citizenid 
+    }))
+    
+    if apt then
+        exports['tmgnosql']:UpdateOne('apartments',
+            { ["name"] = apartmentId },
+            { ["$pull"] = { ["tenants"] = targetCid } }
+        )
+        TriggerClientEvent('TMGCore:Notify', src, Lang:t('success.key_revoked'))
+    else
+        TriggerClientEvent('TMGCore:Notify', src, Lang:t('error.not_owner'), 'error')
+    end
+end)
+
+RegisterNetEvent('apartments:server:UpgradeApartment', function(apartmentId, tierKey)
+    local src = source
+    local Player = TMGCore.Functions.GetPlayer(src)
+    local upgradeData = Config.Upgrades[tierKey]
+    
+    if not upgradeData then return end
+    
+    local apt = Citizen.Await(exports['tmgnosql']:FetchOne('apartments', { 
+        ["name"] = apartmentId, 
+        ["citizenid"] = Player.PlayerData.citizenid 
+    }))
+    
+    if apt then
+        if Player.Functions.RemoveMoney('bank', upgradeData.price, "apartment-upgrade") then
+            exports['tmgnosql']:UpdateOne('apartments',
+                { ["name"] = apartmentId },
+                { ["$set"] = { ["tier"] = tierKey } }
+            )
+            TriggerClientEvent('TMGCore:Notify', src, Lang:t('success.upgraded') .. upgradeData.label)
+        else
+            TriggerClientEvent('TMGCore:Notify', src, Lang:t('error.insufficient_funds'), 'error')
+        end
+    end
 end)
 
 RegisterNetEvent('apartments:server:CreateApartment', function(type, label, firstSpawn)
     local src = source
-    local Player = TMGCore.Functions.GetPlayer(src) -- Standardized to TMGCore
+    local Player = TMGCore.Functions.GetPlayer(src) 
     local num = CreateApartmentId(type)
     local apartmentId = tostring(type .. num)
     label = tostring(label .. ' ' .. num)
@@ -88,12 +181,12 @@ RegisterNetEvent('apartments:server:CreateApartment', function(type, label, firs
     exports['tmgnosql']:UpdateOne('apartments', 
         { 
             ["citizenid"] = Player.PlayerData.citizenid,
-            ["name"] = apartmentId -- Specific filter to allow multiple apartments per CID
+            ["name"] = apartmentId 
         }, 
         { 
             ["$set"] = { 
-                ["name"] = apartmentId, -- This matches 'name' in SQL
-                ["type"] = type,        -- Missing in your previous version
+                ["name"] = apartmentId, 
+                ["type"] = type,        
                 ["label"] = label,
                 ["citizenid"] = Player.PlayerData.citizenid
             } 
@@ -120,11 +213,11 @@ RegisterNetEvent('apartments:server:UpdateApartment', function(type, label)
         { ["citizenid"] = Player.PlayerData.citizenid }, 
         { 
             ["$set"] = { 
-                ["type"] = type,   -- Fixed: Correctly updating the apartment type category
-                ["label"] = label  -- Fixed: Correctly updating the display label
+                ["type"] = type,   
+                ["label"] = label  
             } 
         }, 
-        { ["upsert"] = false } -- Changed to false: Legacy 'UPDATE' implies the record already exists
+        { ["upsert"] = false } 
     )
 
     print(string.format("^5[TMG]^7 Mainframe: Apartment meta synchronized for %s", Player.PlayerData.citizenid))
@@ -189,7 +282,7 @@ RegisterNetEvent('apartments:server:setCurrentApartment', function(ap)
     Player.Functions.SetMetaData('currentapartment', ap)
 end)
 
--- Callbacks
+
 
 TMGCore.Functions.CreateCallback('apartments:GetAvailableApartments', function(_, cb, apartment)
     local apartments = {}
@@ -202,6 +295,20 @@ TMGCore.Functions.CreateCallback('apartments:GetAvailableApartments', function(_
         end
     end
     cb(apartments)
+end)
+
+TMGCore.Functions.CreateCallback('apartments:GetPlayerProperties', function(source, cb, cid)
+    local citizenid = cid or TMGCore.Functions.GetPlayer(source).PlayerData.citizenid
+    
+    local owned = Citizen.Await(exports['tmgnosql']:FetchAll('apartments', { ["citizenid"] = citizenid }))
+    local rented = Citizen.Await(exports['tmgnosql']:FetchAll('apartments', { ["tenants"] = citizenid }))
+    
+    cb({
+        owned = owned or {},
+        rented = rented or {}
+    })
+    
+    print(string.format("^5[TMG]^7 Mainframe: Full Property Matrix synchronized for %s", citizenid))
 end)
 
 TMGCore.Functions.CreateCallback('apartments:GetApartmentOffset', function(_, cb, apartmentId)
@@ -269,7 +376,7 @@ TMGCore.Functions.CreateCallback('apartments:IsOwner', function(source, cb, apar
             cb(false)
         end
     else
-        cb(false) -- Safety gate: Player session not found
+        cb(false) 
     end
 end)
 
@@ -292,6 +399,6 @@ TMGCore.Functions.CreateCallback('apartments:GetOutfits', function(source, cb)
 
         print(string.format("^5[TMG]^7 Mainframe: Wardrobe manifest synchronized for %s", Player.PlayerData.citizenid))
     else
-        cb(nil) -- Safety gate: Player session not found
+        cb(nil) 
     end
 end)

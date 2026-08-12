@@ -1,10 +1,41 @@
 Config = {}
-Config.UseTarget = true -- Set to true to use qb-target, false to use PolyZone/DrawText
+Config.UseTarget = true 
 Config.UseIntercom = true 
+
+
+Config.Keys = {
+    Enabled = true,
+    MaxTenantsPerApartment = 3, 
+    AllowTenantStashAccess = true 
+}
 
 Apartments = {}
 Apartments.Starting = true
-Apartments.SpawnOffset = 30
+Apartments.SpawnOffset = 30 
+
+
+Config.Upgrades = {
+    ["tier1"] = { 
+        price = 0, 
+        label = "Basic Studio", 
+        interiorOffset = 0, 
+        stashWeight = 100000 
+    },
+    ["tier2"] = { 
+        price = 50000, 
+        label = "Modern Loft", 
+        interiorOffset = 50, 
+        stashWeight = 250000 
+    },
+    ["tier3"] = { 
+        price = 150000, 
+        label = "Luxury Penthouse", 
+        interiorOffset = 100, 
+        stashWeight = 500000 
+    }
+}
+
+
 Apartments.Locations = {
     ["apartment1"] = {
         name = "apartment1",
@@ -39,56 +70,6 @@ Apartments.Locations = {
             distance = 2.0,
             created = false
         }
-    },
-    ["apartment3"] = {
-        name = "apartment3",
-        label = "Integrity Way",
-        coords = {
-            enter = vector4(269.73, -640.75, 42.02, 249.07),
-        },
-        polyzoneBoxData = {
-            heading = 250,
-            minZ = 40,
-            maxZ = 43.5,
-            debug = false,
-            length = 1,
-            width = 1,
-            distance = 2.0,
-            created = false
-        }
-    },
-    ["apartment4"] = {
-        name = "apartment4",
-        label = "Tinsel Towers",
-        coords = {
-            enter = vector4(-619.29, 37.69, 43.59, 181.03),
-        },
-        polyzoneBoxData = {
-            heading = 180,
-            minZ = 41.0,
-            maxZ = 45.5,
-            debug = false,
-            length = 1,
-            width = 2,
-            distance = 2.0,
-            created = false
-        }
-    },
-    ["apartment5"] = {
-        name = "apartment5",
-        label = "Fantastic Plaza",
-        coords = {
-            enter = vector4(291.517, -1078.674, 29.405, 270.75),
-        },
-        polyzoneBoxData = {
-            heading = 270,
-            minZ = 28.5,
-            maxZ = 31.0,
-            debug = false,
-            length = 1,
-            width = 2,
-            distance = 2.0,
-            created = false
-        }
-    },
+    }
+    
 }
